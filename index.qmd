@@ -1,11 +1,18 @@
 ---
-title: "cecperky.github.io"
+title: "Cecilia Percy"
+about: 
+  template: trestles
+  image: cecilia_pic.JPG
+  links:
+    - icon: github
+      text: Github
+      href: https://github.com/cecperky
+    - icon: linkedin
+      text: LinkedIn
+      href: https://www.linkedin.com/in/cecilia-percy-367836399/
+    - icon: envelope
+      text: Email
+      href: mailto:percy2@stolaf.edu
 ---
 
-This is a Quarto website.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-```{r}
-1 + 1
-```
+Hi! I am Cecilia! 

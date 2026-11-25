@@ -9,15 +9,24 @@ website:
     left:
       - href: index.qmd
         text: Home
-      - about.qmd
+      #- href: about.qmd
+      #  text: About
+      - text: Projects
+        menu:
+          - text: "SDS 264: Mini Project 1"
+            href: miniproject1.qmd
+          - text: "SDS 264: Choropleth Maps"
+            href: maps.qmd
 
 format:
   html:
     theme:
       - cosmo
       - brand
+      - minty
     css: styles.css
     toc: true
+    page-layout: full
 
 editor: visual
 

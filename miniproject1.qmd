@@ -1,0 +1,247 @@
+---
+title: "One Direction: Behind the Songs of a Boy Band"
+subtitle: "SDS 264: Mini Project 1"
+format: html
+---
+
+```{r}
+#| include: FALSE
+
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+library(httr)
+library(rvest)
+library(remotes)
+library(polite)
+library(tidytext)
+library(textdata)
+library(wordcloud)
+library(wordcloud2)
+library(viridis)
+library(ggthemes)
+library(gutenbergr)
+library(scales)
+
+one_direction_raw <- read.csv("one_direction2.csv")
+
+```
+
+```{r}
+#| echo: FALSE
+
+#Data Cleaning
+one_direction <- one_direction_raw |>
+  rename(sno = S.No., #tidying the variable names
+         song = Song,
+         artist = Artist.s.,
+         writers = Writer.s.,
+         album = Album.s.,
+         year = Year,
+         lyrics = Lyrics)|>
+  filter(album %in% c("Four", 
+                      "Made in the A.M.", 
+                      "Midnight Memories", 
+                      "Take Me Home", 
+                      "Up All Night"))|> #removed any songs that weren't included on an album of theirs (the dataset included a few cover songs and songs they only performed live)
+  mutate(song = str_remove_all(song, "[\"“”]"))  #used an `str_remove_all` function to clean the song names
+
+#assigning colors to each band member for the plots
+member_colors <- c("Niall" = "#0072B2", "Liam" = "#E69F00", "Harry" = "#CC79A7",
+                   "Zayn" = "#009E73", "Louis" = "#D55E00")
+```
+
+# Introduction
+
+One Direction released five studio albums between 2011 and 2015, going from Up All Night to Made in the A.M. Not long after, the band went on hiatus and its members went their separate ways. As a devoted fan, I wanted to know whether their music, and their songwriting in particular, changed during the years they were together. Using the *One Direction All Songs* dataset from Kaggle, I look at the lyrics and songwriting credits from all five albums: who wrote the songs, which words each writer used, and how the emotional tone of the lyrics shifted from one album to the next.
+
+# Analysis
+
+## Songwriting Credits
+
+For the first plot I looked only at songs with at least one band member as a writer and asked which member it was. On *Up All Night*, credits are split evenly, about 20% each, which suggests those songs were credited to the whole group. The split becomes uneven over time. Louis and Liam take the largest shares on the later albums (Louis about 40% on *Midnight Memories*), and Harry's share edges up to roughly a quarter on *Made in the A.M.* Zayn's share shrinks from 20% to zero, which fits his departure from the band in 2015. Because a co-written song is credited to each member who wrote it, the bars show shares of credits, not distinct songs.
+
+The second plot zooms out to the full catalog, counting each song once and adding the outside writers. On the first two albums, outside writers wrote most of the songs. Only 17% of *Up All Night* and 25% of *Take Me Home* had a band-member writer, and every one of those was a group co-write. That share jumps to 89% on *Midnight Memories* and stays high at 75% on *Four* and 76% on *Made in the A.M.* The move from *Take Me Home* to *Midnight Memories* is the biggest shift in the whole project, as the band went from writing a quarter of its songs to nearly nine in ten.
+
+
+```{r}
+#| echo: FALSE
+
+#Band Member Songwriting Credits
+one_direction_writers <- one_direction |>
+  mutate(num_songs = n(), 
+         member_wrote = ifelse(
+            str_detect(writers, "Niall|Liam|Harry|Zayn|Louis"), #used an `str_detect` function to identify band members that were writers on the song 
+            "Band Member",
+            "Other")) |>
+  filter(member_wrote == "Band Member") |>
+  mutate(Niall = str_detect(writers, "Niall"),
+         Liam  = str_detect(writers, "Liam"),
+         Harry = str_detect(writers, "Harry"),
+         Zayn  = str_detect(writers, "Zayn"),
+         Louis = str_detect(writers, "Louis")) |>
+  pivot_longer(cols = c(Niall, Liam, Harry, Zayn, Louis), #pivot so co-written songs are credited to each member individually
+               names_to = "member",
+               values_to = "wrote") |>
+  filter(wrote) |>
+  mutate(album = fct_reorder(album, year, .fun = min)) #order albums chronologically instead of alphabetically
+
+ggplot(one_direction_writers, aes(x = album, fill = member))+
+  geom_bar(position = "fill") +
+  coord_flip() +
+  scale_fill_manual(values = member_colors) +
+  labs(title = str_wrap("Breakdown of Band Member Songwriting Credits by Album", 45), 
+       y = "Proportion Songs (of Those Written by Band Members)", 
+       x = "Album", 
+       fill = "Band Member", 
+       subtitle = "Albums ordered from newest (top) to oldest (bottom)")+
+  theme_bw()
+```
+
+
+```{r}
+#| echo: FALSE
+#| fig-alt: "Stacked horizontal bar chart showing the number of songs on each of One Direction's five studio albums, ordered from Up All Night at the bottom to Made in the A.M. at the top, with each bar about 16 to 20 songs long. Each bar is split by who wrote the songs: Niall, Harry, Louis, multiple band members together, or outside writers only (gray), and a percentage at the end of each bar gives the share of that album's songs with at least one band member as a writer. Outside writers wrote most of the songs on the first two albums, and band members were credited on only 17% of Up All Night and 25% of Take Me Home, always as a group. That share jumps to 89% on Midnight Memories and stays high at 75% on Four and 76% on Made in the A.M., showing that the band took over most of the songwriting after the first two albums. The data comes from the One Direction All Songs dataset on Kaggle, which lists the writers and album for each song."
+
+#Who Wrote One Direction's Songs?
+one_direction_all <- one_direction |>
+  mutate(Niall = str_detect(writers, "Niall"), #used `str_detect` to identify the band members names within the writers column, and create new columns with (TRUE/FALSE) to show if they were a writer on the song or not
+         Liam  = str_detect(writers, "Liam"),
+         Harry = str_detect(writers, "Harry"),
+         Zayn  = str_detect(writers, "Zayn"),
+         Louis = str_detect(writers, "Louis"), 
+         n_members = Niall + Liam + Harry + Zayn + Louis, #TRUE counts as 1, so adding the columns gives the number of band-member writers
+         writer_group = if_else(n_members == 0, "Outside Writer",
+                 if_else(n_members > 1, "Multiple Members", #one row per song: label co-written songs "Multiple Members" so each song is counted once
+                 str_extract(writers, "Niall|Liam|Harry|Zayn|Louis"))),  #used `str_extract` 
+         writer_group = fct_relevel(writer_group, "Outside Writer", after = Inf)) |>
+  mutate(album = fct_reorder(album, year, .fun = \(x) min(x, na.rm = TRUE)))
+
+#percent of each album's songs with at least one band-member writer
+album_totals <- one_direction_all |>
+  group_by(album) |>
+  summarize(total = n(),
+            pct_band = mean(writer_group != "Outside Writer"))
+
+ggplot(one_direction_all, aes(x = album, fill = writer_group)) +
+  geom_bar() +
+  geom_text(data = album_totals,
+            aes(x = album, y = total, label = percent(pct_band, accuracy = 1)),
+            inherit.aes = FALSE, hjust = -0.2, size = 3) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  scale_fill_manual(values = c(member_colors,
+                             "Multiple Members" = "#56B4E9",
+                             "Outside Writer" = "gray80")) +
+  labs(title = "Who Wrote One Direction's Songs?",
+       subtitle = str_wrap("Percent label = share of each album's songs with a band-member writer; albums ordered newest (top) to oldest (bottom)", 45),
+       x = "Album",
+       y = "Number of Songs",
+       fill = "Writer(s)") +
+  theme_bw()
+```
+
+
+## Words By Writer
+
+To see whether the writers sound different from each other, I cleaned the lyrics (removing section labels, ooh/ah sounds, and common stop words) and found each member's most frequent words. I used the share of each member's words instead of raw counts so members with fewer songs can be compared fairly. The writers share much of the same vocabulary: "yeah", "baby", "love", and "time" appear in every panel, and back appears for four of the five. A few words are individual. "Eyes" appears only for Harry, "home" only for Niall, "kiss" only for Zayn, and "hey" only for Louis, while "end" and "gonna" appear only for Liam. Overall the writers sound more alike than different, which makes sense for a group that often wrote together. Co-written songs show up in each writer's panel, so the panels overlap somewhat, and members with few credited songs rest on small samples.
+
+
+```{r}
+#| include: FALSE
+
+get_stopwords() |> print(n = 50)  
+get_stopwords(source = "smart") |> print(n = 50)   
+
+smart_stopwords <- get_stopwords(source = "smart")
+
+```
+
+
+```{r}
+#| echo: FALSE
+
+one_direction_lyrics <- one_direction_all |>
+  pivot_longer(cols = c(Niall, Liam, Harry, Zayn, Louis), #pivot so a co-written song's lyrics are credited to each member individually
+               names_to = "member",
+               values_to = "wrote") |>
+  filter(wrote) |>                       #one row per member per song they co-wrote
+  mutate(lyrics_clean = lyrics |>
+           str_remove_all("\\[.*?\\]") |>           #section labels eg. [Verse 1: Niall]
+           str_remove_all("(?i)\\b(oo+h+|a+h+|(na)+)\\b") |> #ooh, oooh, ah, aah, ahh, na
+           str_remove_all("[()]") |>                #leftover parentheses from ad-libs eg. (Ooh)
+           str_squish())                            #collapse extra spaces
+
+
+member_words <- one_direction_lyrics |>
+  unnest_tokens(word, lyrics_clean, token = "words") |>
+  anti_join(smart_stopwords, by = "word") |>
+  count(member, word) |>
+  group_by(member) |>
+  mutate(prop = n / sum(n)) |> #proportion of that member's words, so members with fewer songs can be compared fairly
+  ungroup()
+
+member_words |>
+  group_by(member) |>
+  slice_max(prop, n = 10, with_ties = FALSE) |> #top 10 words per member
+  ungroup() |>
+  ggplot(aes(x = word, y = prop, fill = member)) +
+  geom_col() +
+  scale_fill_manual(values = member_colors) +
+  guides(fill = "none") +
+  scale_y_continuous(labels = scales::percent) +
+  coord_flip() +
+  facet_wrap(~ member, scales = "free_y") + # free_y so each panel shows only its own top words
+  labs(title = "Most Common Words Used by Each Band Member",
+       y = "Share of member's words")+ 
+  theme_bw()
+```
+
+
+## Emotion Across the Albums
+
+Next I used the NRC lexicon to track eight emotions across all of the songs on each album, measured per 100 words so albums with more songs aren't favored. Joy is the most common emotion on every album, and it peaks on *Take Me Home* at about 3.7 per 100 words. *Midnight Memories* stands out as a dip, with joy, anticipation, anger, sadness, fear, and surprise all falling from *Take Me Home*, and trust the only emotion that rises. By *Made in the A.M.*, the lyrics are brighter and more trusting than on the first two albums. Joy is about 3.1 (up from about 2.2 on *Up All Night*), anticipation climbs from about 1.5 to about 2.6, and trust roughly doubles from about 1.2 to about 2.2. The harder emotions fall over the same stretch. Anger drops from about 1.45 to about 0.65, sadness from about 1.8 to about 1.15, and fear from about 1.4 to about 1.1, though fear and sadness both bump up on *Four*. The tone isn't a steady shift, but the overall direction is from a mix of joy and sadness early on toward more joy, anticipation, and trust at the end. One caution is that a dictionary scores words out of context, so a word like "baby" or "fall" may not carry the emotion it's tagged with.
+
+```{r}
+#| echo: FALSE
+
+nrc_sentiments <- get_sentiments("nrc")
+
+tokens <- one_direction_all |>
+  filter(!is.na(lyrics)) |>
+  mutate(lyrics_clean = lyrics |>
+           str_remove_all("\\[.*?\\]") |>
+           str_remove_all("(?i)\\b(oo+h+|a+h+|(na)+)\\b") |>
+           str_remove_all("[()]") |>
+           str_squish()) |>
+  unnest_tokens(word, lyrics_clean, token = "words")
+
+#total words per album, so emotions can be compared as a rate (albums with more songs would otherwise have higher raw counts)
+album_totals <- tokens |>
+  count(album, name = "total_words")
+
+album_emotions <- tokens |>
+  inner_join(nrc_sentiments, by = "word", relationship = "many-to-many") |> #many-to-many because NRC assigns some words to several emotions, so a word counts toward each emotion it belongs to
+  filter(!sentiment %in% c("positive", "negative")) |>   #keep only the 8 emotions
+  count(album, sentiment) |>
+  left_join(album_totals, by = "album") |>
+  mutate(rate = n / total_words * 100) #emotion words per 100 words in the album
+
+ggplot(album_emotions, aes(x = album, y = rate, color = sentiment, group = sentiment)) + #group = sentiment connects each emotion's points across albums
+  geom_line(linewidth = 1) + 
+  geom_point(size = 2) +
+  labs(title = "Emotional Tone of One Direction Lyrics by Album",
+       subtitle = "NRC emotion words per 100 words; albums in order of release",
+       x = "Album",
+       y = "Emotion Words per 100 Words",
+       color = "Emotion") +
+  scale_color_colorblind() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) #angled so album names don't overlap
+```
+
+
+# Conclusion
+## What the Lyrics Tell Us
+
+The data show that One Direction's music did change over their five albums, though not in a straight line. The clearest change is in who wrote it. Band members went from writing roughly a fifth of the songs on the first two albums (17% and 25%) to about three-quarters or more on the last three. Each writer's vocabulary stayed largely the same, so the members' voices blend together more than they stand apart. The emotional tone also shifted. Joy was the most common emotion on every album, but by Made in the A.M. the lyrics had more joy, anticipation, and trust and less anger, sadness, and fear than on the first two albums, with Midnight Memories standing out as a dip across almost every emotion. The brighter, more trusting tone on the later albums comes after the band took over most of the songwriting, but this analysis can't show that one caused the other. It also has limits: some members have few credited songs, songs are counted once per co-writer in the credits and word plots, and emotion is measured with a dictionary that scores words out of context. A natural next step would be looking at singers by section, since the bracketed labels in the lyrics show who sang which part.
