@@ -60,6 +60,27 @@
     "href": "maps.html",
     "title": "Maps Title",
     "section": "",
-    "text": "Minneapolis Data (Categorical)"
+    "text": "Warning: Ignoring 1 observations"
+  },
+  {
+    "objectID": "maps.html#interactive-us",
+    "href": "maps.html#interactive-us",
+    "title": "Maps Title",
+    "section": "",
+    "text": "Warning: Ignoring 1 observations"
+  },
+  {
+    "objectID": "maps.html#static-minneapolis-map",
+    "href": "maps.html#static-minneapolis-map",
+    "title": "Maps Title",
+    "section": "Static Minneapolis Map",
+    "text": "Static Minneapolis Map"
+  },
+  {
+    "objectID": "maps.html#interactive-minneapolis-map",
+    "href": "maps.html#interactive-minneapolis-map",
+    "title": "Maps Title",
+    "section": "Interactive Minneapolis Map",
+    "text": "Interactive Minneapolis Map"
   }
 ]

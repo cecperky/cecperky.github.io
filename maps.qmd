@@ -24,11 +24,14 @@ library(glue)
 library(htmltools)
 library(scales)
 library(ggthemes)
+library(plotly)
 
 zillow_state <- read.csv("zillow_sf_statevalue.csv")
 zillow_neighbor <- read.csv("zillow_sf_neighborhoodvalue2.csv")
 mpls <- read_sf("mpls_neighbors.geojson")
 ```
+
+# United States (Numeric)
 
 ```{r}
 #| echo: FALSE
@@ -72,6 +75,8 @@ zillow_map <- us_states |>
   full_join(zillow_year, by = c("region" = "RegionName")) 
 ```
 
+## United States Static Map
+
 ```{r}
 #| fig-width: 9
 #| fig-height: 7
@@ -94,10 +99,46 @@ zillow_map |>
   labs(title = "Average Value of Homes Across the United States", fill = "Average House Value ($)", subtitle = "Zillow Home Value Index (ZHVI) for single family homes.") 
 
 #TODO
-#make this into an interactive map 
 #add a caption with data source
-#make an animated version of the static map?
 
+```
+
+## Interactive US
+
+```{r}
+#| echo: FALSE
+#| warning: FALSE
+
+#Making sure the names will match in sf
+zillow_year2 <- zillow_year |>
+  filter(year >= 2016, year <= 2026) |>
+  mutate(
+    RegionName = str_to_title(RegionName),
+    state_abbr = state.abb[match(RegionName, state.name)]
+  )
+
+#Making the interactive plot using plotly
+plot_ly(
+  data = zillow_year2,
+  locations = ~state_abbr,
+  z = ~avg_val,
+  frame = ~year,
+  type = "choropleth",
+  locationmode = "USA-states",
+  text = ~paste(
+    RegionName,
+    "<br>Average value:", scales::dollar(avg_val)
+  ),
+  hoverinfo = "text"
+) |>
+  layout(
+    geo = list(
+      scope = "usa"
+    )
+  )
+
+#TODO
+#add a caption with data source
 ```
 
 # Minneapolis Data (Categorical)
@@ -114,7 +155,6 @@ zillow_mpls26 <- zillow_neighbor |>
     names_to = "date",
     values_to = "homevalue"
   ) |>
-  filter(City == "Minneapolis") |>
   mutate(
     date = str_remove(date, "^X"),
     date = str_replace_all(date, "\\.", "-"),
@@ -131,33 +171,8 @@ zillow_mpls26 <- zillow_neighbor |>
            "northrup" = "northrop")
          )
 
-#create a categorical variable for different values of houses
-zillow_mpls26 <- zillow_mpls26 |>
-  mutate(
-    val_group = case_when(
-      avg_val < 400000 ~ "Very Low",
-      avg_val < 600000 ~ "Low",
-      avg_val < 800000 ~ "Moderate",
-      avg_val < 1000000 ~ "High",
-      avg_val < 1200000 ~ "Very High",
-      is.na(avg_val) ~ "No Data",
-      TRUE ~ "Highest"
-    ),
-    val_group = factor(
-      val_group,
-      levels = c(
-        "Very Low",
-        "Low",
-        "Moderate",
-        "High",
-        "Very High",
-        "Highest",
-        "No Data"
-      )
-    )
-  )
-
 ```
+
 
 ```{r} 
 #| echo: FALSE
@@ -192,8 +207,68 @@ mpls_map <- mpls |>
   ) |>
   mutate(BDNAME = str_to_upper(BDNAME))
 
+#create a categorical variable for different values of houses
+mpls_map <- mpls_map |>
+  mutate(
+    val_group = case_when(
+      avg_val < 400000 ~ "Very Low",
+      avg_val < 600000 ~ "Low",
+      avg_val < 800000 ~ "Moderate",
+      avg_val < 1000000 ~ "High",
+      avg_val < 1200000 ~ "Very High",
+      is.na(avg_val) ~ "No Data",
+      TRUE ~ "Highest"
+    ),
+    val_group = factor(
+      val_group,
+      levels = c(
+        "Very Low",
+        "Low",
+        "Moderate",
+        "High",
+        "Very High",
+        "Highest",
+        "No Data"
+      )
+    )
+  )
+
 ```
 
+## Static Minneapolis Map
+
+```{r}
+#| fig-width: 9
+#| fig-height: 7
+#| out-width: "80%"
+#| echo: FALSE
+
+ggplot(mpls_map) +
+  geom_sf(aes(fill = val_group), color = "white", linewidth = 0.3) +
+  scale_fill_manual(
+    values = c(
+      "Very Low" = "#440154",
+      "Low" = "#414487",
+      "Moderate" = "#2A788E",
+      "High" = "#22A884",
+      "Very High" = "#7AD151",
+      "Highest" = "#FDE725",
+      "No Data" = "grey80"
+    ),
+    drop = FALSE,
+    name = "Average Home Value ($)"
+  ) +
+  labs(
+    title = "Average Values of Single Family Homes in Minneapolis",
+    subtitle = "2026 Zillow Home Value Index (ZHVI) Scores by Neighborhood"
+  ) +
+  theme_void() 
+
+#TODO
+#add a caption with data source/link
+```
+
+## Interactive Minneapolis Map
 
 ```{r}
 #| echo: FALSE
@@ -225,7 +300,7 @@ pal <- colorFactor(
   ordered = TRUE
 )
 
-#plot
+#interactive plot
 leaflet(mpls_map) |>
   addTiles() |>
   addPolygons(
@@ -251,8 +326,7 @@ leaflet(mpls_map) |>
   )
 
 #TODO
-#make this into a static plot
-#give this a subtitle or caption saying this is of all the single family homes 
+#give this a subtitle or caption saying this is of all the single family homes and 2026
 #add a caption with data source
 #add link to github code?
 ```
