@@ -1,5 +1,265 @@
 ---
-title: "SDS 264: Choropleth Maps"
+title: "Maps Title"
+subtitle: "SDS 264: Choropleth Maps"
 format: html
+editor_options: 
+  chunk_output_type: console
 ---
+
+```{r}
+#| message: FALSE
+#| warning: FALSE
+#| echo: FALSE
+
+# Initial packages required (we'll be adding more)
+library(tidyverse)
+library(mdsr)# package associated with our MDSR book
+library(lubridate)
+library(leaflet)
+library(sf)
+library(maps)
+library(dplyr)
+library(viridis)
+library(glue)
+library(htmltools)
+library(scales)
+library(ggthemes)
+
+zillow_state <- read.csv("zillow_sf_statevalue.csv")
+zillow_neighbor <- read.csv("zillow_sf_neighborhoodvalue2.csv")
+mpls <- read_sf("mpls_neighbors.geojson")
+```
+
+```{r}
+#| echo: FALSE
+
+#cleaning state zillow data
+
+zillow_state <- zillow_state |>
+  select(RegionName, starts_with("X201"), starts_with("X202")) |> #filter to only include the state names and dates from 2010 to present 
+  filter(RegionName != "District of Columbia")
+
+#pivoting for easy date anaylsis 
+
+zillow_long <- zillow_state |>
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "date",
+    values_to = "homevalue"
+  ) |>
+  mutate(
+    date = str_remove(date, "^X"),
+    date = str_replace_all(date, "\\.", "-"),
+    date = ymd(date),
+    year = year(date)
+  ) 
+
+#average value for each year 
+zillow_year <- zillow_long |>
+  group_by(RegionName, year) |>
+  summarize(avg_val = mean(homevalue), .groups = "drop") |>
+  mutate(RegionName = str_to_lower(RegionName))
+```
+
+```{r}
+#| include: FALSE
+
+us_states <- map_data("state")
+
+#joining state zillow and us states 
+
+zillow_map <- us_states |>
+  full_join(zillow_year, by = c("region" = "RegionName")) 
+```
+
+```{r}
+#| fig-width: 9
+#| fig-height: 7
+#| out-width: "80%"
+#| echo: FALSE
+
+zillow_map |>
+  filter(year >= 2016) |>
+  ggplot(mapping = aes(x = long, y = lat, group = group)) + 
+    geom_polygon(
+      aes(fill = avg_val), 
+      color = "black", 
+      linewidth = 0.1
+    ) + 
+    labs(fill = "avg_val") +
+    coord_map() +  
+    theme_void() +  
+    scale_fill_viridis() +
+    facet_wrap(~year) +
+  labs(title = "Average Value of Homes Across the United States", fill = "Average House Value ($)", subtitle = "Zillow Home Value Index (ZHVI) for single family homes.") 
+
+#TODO
+#make this into an interactive map 
+#add a caption with data source
+#make an animated version of the static map?
+
+```
+
+# Minneapolis Data (Categorical)
+
+```{r}
+#| echo: FALSE
+
+# cleaning zillow neighborhood - to have average value for each neighborhood for the year 2026
+
+zillow_mpls26 <- zillow_neighbor |>
+  select(City, RegionName, starts_with("X2026")) |>
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "date",
+    values_to = "homevalue"
+  ) |>
+  filter(City == "Minneapolis") |>
+  mutate(
+    date = str_remove(date, "^X"),
+    date = str_replace_all(date, "\\.", "-"),
+    date = ymd(date),
+    year = year(date)
+  ) |>
+  group_by(RegionName, year) |>
+  summarize(avg_val = mean(homevalue), .groups = "drop") |>
+  mutate(RegionName = str_to_lower(RegionName),
+         RegionName = recode(
+           RegionName, 
+           "east bank-nicollet island" = "nicollet island east bank",
+           "fuller tangletown" = "tangletown",
+           "northrup" = "northrop")
+         )
+
+#create a categorical variable for different values of houses
+zillow_mpls26 <- zillow_mpls26 |>
+  mutate(
+    val_group = case_when(
+      avg_val < 400000 ~ "Very Low",
+      avg_val < 600000 ~ "Low",
+      avg_val < 800000 ~ "Moderate",
+      avg_val < 1000000 ~ "High",
+      avg_val < 1200000 ~ "Very High",
+      is.na(avg_val) ~ "No Data",
+      TRUE ~ "Highest"
+    ),
+    val_group = factor(
+      val_group,
+      levels = c(
+        "Very Low",
+        "Low",
+        "Moderate",
+        "High",
+        "Very High",
+        "Highest",
+        "No Data"
+      )
+    )
+  )
+
+```
+
+```{r} 
+#| echo: FALSE
+
+mpls <- mpls |>
+  mutate(BDNAME = str_to_lower(BDNAME),
+         BDNAME = recode(
+           BDNAME, 
+           "bryn - mawr" = "bryn mawr",
+           "cedar - isles - dean" = "cedar-isles-dean",
+           "cedar riverside" = "cedar-riverside",
+           "king field" = "kingfield",
+           "lind - bohanon" = "lind-bohanon", 
+           "mid - city industrial" = "mid-city industrial",
+           "near - north" = "near north",
+           "nicollet island - east bank" = "nicollet island east bank",
+           "prospect park - east river road" = "prospect park",
+           "st. anthony east" = "saint anthony east",
+           "st. anthony west" = "saint anthony west",
+           "steven's square - loring heights" = "stevens square",
+           "sumner - glenwood" = "sumner-glenwood",
+           "webber - camden" = "webber-camden",
+           "willard - hay" = "willard hay"
+           )
+         ) 
+
+#join the cleaned datasets (mpls and zillow_mpls26) 
+mpls_map <- mpls |>
+  left_join(
+    zillow_mpls26,
+    by = c("BDNAME" = "RegionName")
+  ) |>
+  mutate(BDNAME = str_to_upper(BDNAME))
+
+```
+
+
+```{r}
+#| echo: FALSE
+
+#labels
+mpls_map <- mpls_map |>
+  mutate(
+    labels = glue(
+      "<strong>{BDNAME}</strong><br/>
+      Average Home Value: {dollar(avg_val)}<br/>
+      Value Category: {val_group}"
+    )
+  )
+
+labels <- lapply(mpls_map$labels, HTML)
+
+#color pallate 
+pal <- colorFactor(
+  palette = c(
+    "#440154",
+    "#414487",
+    "#2A788E",
+    "#22A884",
+    "#7AD151",
+    "#FDE725",
+    "grey80"
+  ),
+  domain = levels(mpls_map$val_group),
+  ordered = TRUE
+)
+
+#plot
+leaflet(mpls_map) |>
+  addTiles() |>
+  addPolygons(
+    fillColor = ~pal(val_group),
+    weight = 2,
+    color = "white",
+    opacity = 1,
+    fillOpacity = 0.8,
+
+    highlightOptions = highlightOptions(
+      weight = 4,
+      color = "#444",
+      bringToFront = TRUE
+    ),
+
+    label = labels
+  ) |>
+  addLegend(
+    pal = pal,
+    values = ~val_group,
+    title = "Average Home Value ($)",
+    position = "bottomright"
+  )
+
+#TODO
+#make this into a static plot
+#give this a subtitle or caption saying this is of all the single family homes 
+#add a caption with data source
+#add link to github code?
+```
+
+
+
+
+
+
 

@@ -25,6 +25,8 @@ library(scales)
 
 one_direction_raw <- read.csv("one_direction2.csv")
 
+#TODO
+#make a link to the data on github?
 ```
 
 ```{r}
@@ -63,7 +65,6 @@ For the first plot I looked only at songs with at least one band member as a wri
 
 The second plot zooms out to the full catalog, counting each song once and adding the outside writers. On the first two albums, outside writers wrote most of the songs. Only 17% of *Up All Night* and 25% of *Take Me Home* had a band-member writer, and every one of those was a group co-write. That share jumps to 89% on *Midnight Memories* and stays high at 75% on *Four* and 76% on *Made in the A.M.* The move from *Take Me Home* to *Midnight Memories* is the biggest shift in the whole project, as the band went from writing a quarter of its songs to nearly nine in ten.
 
-
 ```{r}
 #| echo: FALSE
 
@@ -91,13 +92,12 @@ ggplot(one_direction_writers, aes(x = album, fill = member))+
   coord_flip() +
   scale_fill_manual(values = member_colors) +
   labs(title = str_wrap("Breakdown of Band Member Songwriting Credits by Album", 45), 
-       y = "Proportion Songs (of Those Written by Band Members)", 
+       y = "Proportion of Songs (For Those Written by Band Members)", 
        x = "Album", 
        fill = "Band Member", 
        subtitle = "Albums ordered from newest (top) to oldest (bottom)")+
   theme_bw()
 ```
-
 
 ```{r}
 #| echo: FALSE
@@ -141,11 +141,9 @@ ggplot(one_direction_all, aes(x = album, fill = writer_group)) +
   theme_bw()
 ```
 
-
 ## Words By Writer
 
 To see whether the writers sound different from each other, I cleaned the lyrics (removing section labels, ooh/ah sounds, and common stop words) and found each member's most frequent words. I used the share of each member's words instead of raw counts so members with fewer songs can be compared fairly. The writers share much of the same vocabulary: "yeah", "baby", "love", and "time" appear in every panel, and back appears for four of the five. A few words are individual. "Eyes" appears only for Harry, "home" only for Niall, "kiss" only for Zayn, and "hey" only for Louis, while "end" and "gonna" appear only for Liam. Overall the writers sound more alike than different, which makes sense for a group that often wrote together. Co-written songs show up in each writer's panel, so the panels overlap somewhat, and members with few credited songs rest on small samples.
-
 
 ```{r}
 #| include: FALSE
@@ -156,7 +154,6 @@ get_stopwords(source = "smart") |> print(n = 50)
 smart_stopwords <- get_stopwords(source = "smart")
 
 ```
-
 
 ```{r}
 #| echo: FALSE
@@ -196,7 +193,6 @@ member_words |>
        y = "Share of member's words")+ 
   theme_bw()
 ```
-
 
 ## Emotion Across the Albums
 
@@ -240,8 +236,8 @@ ggplot(album_emotions, aes(x = album, y = rate, color = sentiment, group = senti
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) #angled so album names don't overlap
 ```
 
-
 # Conclusion
+
 ## What the Lyrics Tell Us
 
 The data show that One Direction's music did change over their five albums, though not in a straight line. The clearest change is in who wrote it. Band members went from writing roughly a fifth of the songs on the first two albums (17% and 25%) to about three-quarters or more on the last three. Each writer's vocabulary stayed largely the same, so the members' voices blend together more than they stand apart. The emotional tone also shifted. Joy was the most common emotion on every album, but by Made in the A.M. the lyrics had more joy, anticipation, and trust and less anger, sadness, and fear than on the first two albums, with Midnight Memories standing out as a dip across almost every emotion. The brighter, more trusting tone on the later albums comes after the band took over most of the songwriting, but this analysis can't show that one caused the other. It also has limits: some members have few credited songs, songs are counted once per co-writer in the credits and word plots, and emotion is measured with a dictionary that scores words out of context. A natural next step would be looking at singers by section, since the bracketed labels in the lyrics show who sang which part.
